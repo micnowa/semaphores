@@ -39,7 +39,6 @@ bool push(queue *q, char c, int priority) {
 
         return true;
     }
-    printf("Added %c, with priority: %d\n", c, priority);
 
     return false;
 }
@@ -51,7 +50,6 @@ char pop(queue *q) {
     int pri = q->priorities[0];
     for (int i = 0; i < q->max; i++) q->str[i] = q->str[i + 1];
     for (int i = 0; i < q->max - 1; i++) q->priorities[i] = q->priorities[i + 1];
-    printf("Added %c, with priority: %d\n", c, pri);
     return c;
 }
 
@@ -72,6 +70,7 @@ bool destroy_queue(queue *q) {
 
 
 void print_queue(queue *q) {
+    if(strlen(q->str)) puts("Queue empty");
     for (unsigned long i = 0; i < strlen(q->str); i++)
         printf("%c, %d\n", q->str[i], q->priorities[i]);
 }
