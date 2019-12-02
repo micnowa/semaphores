@@ -9,16 +9,17 @@
 #define LAB3_QUEUE_H
 
 #define PROCESS_SHARE 1
+#define COM_LEN 3
 
 typedef struct {
     int max;
-    char *str;
+    char *str[COM_LEN];
     int *priorities;
 } queue;
 
-bool push(queue *q, char c, int priority);
+bool push(queue *q, const char *c, int priority);
 
-char pop(queue *q);
+char* pop(queue *q);
 
 queue *create_queue(int size);
 
