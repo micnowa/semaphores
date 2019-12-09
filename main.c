@@ -9,10 +9,9 @@
 #include <errno.h>
 #include <time.h>
 #include <string.h>
-#include "shared_memory.h"
 #include "queue.h"
 
-#define QUEUE_SIZE 10
+#define QUEUE_SIZE 10000
 #define QUEUE_NUM 3
 #define MS_TO_US 1000
 
@@ -36,7 +35,7 @@ typedef enum {
 } priority;
 
 char com[] = {'A', 'B', 'C'};
-double pr = 0.2;
+double pr = -1.0;
 
 void produce(queue **q, char *communicate, int num, int priority, sem_t *empty, sem_t *mutex, sem_t *full) {
     sem_wait(empty);
@@ -69,10 +68,6 @@ void destroy_semaphores() {
         sem_unlink(sem_mutex_name[i]);
         sem_unlink(sem_empty_name[i]);
     }
-}
-
-void handle_signal(int SIG) {
-    puts("Signal caught!");
 }
 
 char *int_to_str(int num) {
@@ -114,7 +109,7 @@ void remove_queue_from_shmem() {
 
 
 int main(void) {
-    int times = 20;
+    int times = 10;
     int i;
     sem_t *sem;
     pid_t pid;
@@ -122,16 +117,16 @@ int main(void) {
     unsigned int value = 1;
     int sleep_ms_time = 500;
     int freq = 500;
-    srand(time(NULL));
 
-    /* initialize semaphores for shared processes */
+
+    /** initialize semaphores for shared processes **/
     sem = sem_open("pSem", O_CREAT | O_EXCL, 0644, value);
     initialize_semaphores();
     /* name of semaphore is "pSem", semaphore is reached using this name */
 
     printf("semaphores initialized.\n\n");
 
-    queue **q;
+    queue **q; // 3 queue, q[0], q[1], q[2], type of q[i] = pointer to queue, *queue
     qq_mem_id = shmget(QUEUE_KEY, 3 * sizeof(queue *), IPC_CREAT | 0666);
     q = (queue **) shmat(qq_mem_id, 0, 0);
     for (int j = 0; j < QUEUE_NUM; j++) {
@@ -147,10 +142,11 @@ int main(void) {
     }
 
 
-    // fork child processes with checking if it's possible
+    /** fork child processes with checking if it's possible **/
     for (i = 0; i < n; i++) {
         pid = fork();
         if (pid < 0) {
+            remove_queue_from_shmem();
             sem_unlink("pSem");
             sem_close(sem);
             printf("Fork error.\n");
@@ -159,7 +155,6 @@ int main(void) {
 
 
     if (pid != 0) {
-        signal(SIGINT, handle_signal);
         while (pid = waitpid(-1, NULL, 0)) if (errno == ECHILD) break;
         printf("\nParent: All children have exited.\n");
         sem_unlink("pSem");
@@ -171,11 +166,12 @@ int main(void) {
         sem_wait(sem);
         if (i == 0 || i == 1 || i == 2) printf("Producer(%d) started running\n", i);
         else if (i == 3 || i == 4 || i == 5) printf("Consumer(%d) started running\n", i % 3);
-        else if(i== 6) printf("Special producer(%d) started running\n", i%6);
+        else if (i == 6) printf("Special producer(%d) started running\n", i % 6);
         sem_post(sem);
         sleep(1);
 
         if (i == 0 || i == 1 || i == 2) { // Producer
+            srand(time(NULL));
             printf("Producer %d\n", i);
             int counter = 0;
             char *signs = malloc(sizeof(char) * (COM_LEN + 1));
@@ -190,9 +186,11 @@ int main(void) {
                 usleep(MS_TO_US * freq);
                 counter++;
             }
+            free(signs);
 
 
         } else if (i == 3 || i == 4 || i == 5) {// Consumer
+            srand(time(NULL));
             printf("Consumer %d\n", i);
             int k = i % 3;
             int counter = 0;
@@ -206,17 +204,14 @@ int main(void) {
                 usleep(MS_TO_US * freq);
                 double r = ((double) rand() / (RAND_MAX));
                 if (r < pr) {
-                    char *signs = malloc(sizeof(char) * (COM_LEN + 1));
-                    signs[COM_LEN] = '\0';
-                    for (int m = 0; m < COM_LEN - 1; m++) {
-                        signs[m] = signs[m + 1];
-                    }
-                    signs[0] = com[rand() % COM_LEN];
-                    produce(q, signs, i, LOW, sem_empty[i], sem_mutex[i], sem_full[i]);
+                    for (int m = 0; m < COM_LEN - 1; m++) tmp[m] = tmp[m + 1];
+                    tmp[COM_LEN] = com[rand() % COM_LEN];
+                    produce(q, tmp, i, LOW, sem_empty[i], sem_mutex[i], sem_full[i]);
                 }
                 counter++;
             }
-        } else if(i == 6) { // Special producer
+        } else if (i == 6) { // Special producer
+            srand(time(NULL));
             printf("Special producer: %d\n", i);
             int counter = 0;
             char *signs = malloc(sizeof(char) * (COM_LEN + 1));
@@ -224,18 +219,15 @@ int main(void) {
             while (counter != times) {
                 int queue_number = rand() % QUEUE_NUM;
                 for (int j = 0; j < COM_LEN; j++) signs[j] = com[rand() % COM_LEN];
-                produce(q, signs, queue_number, HIGH, sem_empty[queue_number], sem_mutex[queue_number], sem_full[queue_number]);
+                produce(q, signs, queue_number, HIGH, sem_empty[queue_number], sem_mutex[queue_number],
+                        sem_full[queue_number]);
                 sem_wait(sem);
-                printf("Drawn queue: %d\n", queue_number);
-                printf("Added %s(1) to q[%d]\n", signs,queue_number);
+                printf("Added %s(1) to q[%d]\n", signs, queue_number);
                 sem_post(sem);
                 usleep(MS_TO_US * sleep_ms_time);
                 counter++;
             }
         }
-
     }
     exit(0);
 }
-
-

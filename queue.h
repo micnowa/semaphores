@@ -1,5 +1,5 @@
 //
-// Created by root on 11/22/19.
+// Created by Michał Nowaliński on 11/22/19.
 //
 
 #include <stdbool.h>
